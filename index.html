@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -18,80 +17,142 @@
         display: inline-block;
         min-width: 150px;
       }
+      button {
+        margin-top: 15px;
+        padding: 8px 15px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
     <h1>Visitor Information</h1>
     <div id="info">Loading...</div>
+    <button id="saveButton" disabled>Save Data as all.txt</button>
 
     <script>
+      let collectedData = null; // To store the data once collected
+
       async function getVisitorInfo() {
         const infoDiv = document.getElementById("info");
+        const saveButton = document.getElementById("saveButton");
         let infoHTML = "";
-        let ipAddress = "Could not fetch IP"; // Default value
+        let ipAddress = "Could not fetch IP";
 
-        // --- Fetch IP Address (Requires an external service) ---
+        const data = {}; // Object to hold the key-value pairs
+
+        // --- Fetch IP Address ---
         try {
-          // Using api.ipify.org as an example public IP service
           const response = await fetch("https://api.ipify.org?format=json");
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
-          const data = await response.json();
-          ipAddress = data.ip;
+          const ipData = await response.json();
+          ipAddress = ipData.ip;
         } catch (error) {
           console.error("Error fetching IP address:", error);
           ipAddress = `Error fetching IP: ${error.message}`;
         }
+        data["IP Address"] = ipAddress;
 
         // --- Gather Browser Information ---
-        const ua = navigator.userAgent;
-        const screenWidth = screen.width;
-        const screenHeight = screen.height;
-        const colorDepth = screen.colorDepth;
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        const language = navigator.language || navigator.userLanguage;
-        const platform = navigator.platform;
-        const cookiesEnabled = navigator.cookieEnabled;
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const onlineStatus = navigator.onLine;
+        data["User Agent"] = navigator.userAgent;
+        data["Screen Resolution"] = `${screen.width}x${screen.height}`;
+        data["Color Depth"] = `${screen.colorDepth}-bit`;
+        data["Browser Window Size"] = `${window.innerWidth}x${window.innerHeight}`;
+        data["Language"] = navigator.language || navigator.userLanguage;
+        data["Platform"] = navigator.platform;
+        data["Timezone"] = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        data["Cookies Enabled"] = navigator.cookieEnabled;
+        data["Online Status"] = navigator.onLine;
 
-        // --- Basic Device Type Inference (Example - very basic!) ---
+        // --- Basic Device Type Inference ---
         let deviceType = "Desktop";
-        if (/Mobi|Android/i.test(ua)) {
+        if (/Mobi|Android/i.test(data["User Agent"])) {
           deviceType = "Mobile";
-        } else if (/Tablet|iPad/i.test(ua)) {
+        } else if (/Tablet|iPad/i.test(data["User Agent"])) {
           deviceType = "Tablet";
-        } else if (
-          platform.startsWith("Mac") ||
-          platform.startsWith("Win") ||
-          platform.startsWith("Linux")
-        ) {
-          // Could still be a tablet/hybrid, but more likely desktop
-          deviceType = "Desktop";
         }
-        // More robust detection often involves checking touch capabilities
-        // and screen size in addition to the user agent.
+        data["Inferred Device Type"] = deviceType;
 
         // --- Display Information ---
-        infoHTML += `<div><strong>IP Address:</strong> ${ipAddress}</div>`;
-        infoHTML += `<div><strong>User Agent:</strong> ${ua}</div>`;
-        infoHTML += `<div><strong>Inferred Device Type:</strong> ${deviceType} (based on UA/Platform)</div>`;
-        infoHTML += `<div><strong>Screen Resolution:</strong> ${screenWidth}x${screenHeight}</div>`;
-        infoHTML += `<div><strong>Color Depth:</strong> ${colorDepth}-bit</div>`;
-        infoHTML += `<div><strong>Browser Window Size:</strong> ${windowWidth}x${windowHeight}</div>`;
-        infoHTML += `<div><strong>Language:</strong> ${language}</div>`;
-        infoHTML += `<div><strong>Platform:</strong> ${platform}</div>`;
-        infoHTML += `<div><strong>Timezone:</strong> ${timezone}</div>`;
-        infoHTML += `<div><strong>Cookies Enabled:</strong> ${cookiesEnabled}</div>`;
-        infoHTML += `<div><strong>Online Status:</strong> ${onlineStatus}</div>`;
-
+        for (const key in data) {
+          infoHTML += `<div><strong>${key}:</strong> ${data[key]}</div>`;
+        }
         infoDiv.innerHTML = infoHTML;
+
+        // Store collected data and enable the button
+        collectedData = data;
+        saveButton.disabled = false;
       }
 
-      // Run the function when the page loads
+      // Helper function to escape values for CSV if they contain commas or quotes
+      function escapeCsvValue(value) {
+        const stringValue = String(value); // Ensure it's a string
+        // Check if the value contains a comma, a double quote, or a newline
+        if (
+          stringValue.includes(",") ||
+          stringValue.includes('"') ||
+          stringValue.includes("\n")
+        ) {
+          // Escape existing double quotes by doubling them
+          const escapedValue = stringValue.replace(/"/g, '""');
+          // Enclose the entire value in double quotes
+          return `"${escapedValue}"`;
+        }
+        // If no special characters, return as is
+        return stringValue;
+      }
+
+      function saveDataToFile() {
+        if (!collectedData) {
+          alert("Data not collected yet.");
+          return;
+        }
+
+        // 1. Define filename and MIME type
+        const filename = "all.txt";
+        // Use text/plain for .txt file, though text/csv is more specific for CSV data
+        const mimeType = "text/plain";
+
+        // 2. Format data as CSV
+        const headers = Object.keys(collectedData);
+        const values = headers.map((header) =>
+          escapeCsvValue(collectedData[header])
+        ); // Escape each value
+
+        const csvHeader = headers.join(",");
+        const csvValues = values.join(",");
+        const csvString = `${csvHeader}\n${csvValues}`; // Combine header and values with a newline
+
+        // 3. Create a Blob
+        const blob = new Blob([csvString], { type: mimeType });
+
+        // 4. Create an Object URL
+        const url = URL.createObjectURL(blob);
+
+        // 5. Create a Link Element
+        const link = document.createElement("a");
+
+        // 6. Set Attributes
+        link.href = url;
+        link.download = filename; // Set the desired filename here
+
+        // 7. Append, Trigger Click, Remove
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // 8. Clean Up Object URL
+        URL.revokeObjectURL(url);
+      }
+
+      // Run the info gathering function when the page loads
       window.addEventListener("load", getVisitorInfo);
+
+      // Add event listener to the save button
+      document
+        .getElementById("saveButton")
+        .addEventListener("click", saveDataToFile);
     </script>
   </body>
 </html>

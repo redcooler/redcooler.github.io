@@ -1,96 +1,202 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Visitor Information</title>
-    <style>
-      body {
-        font-family: sans-serif;
-        line-height: 1.6;
-      }
-      #info div {
-        margin-bottom: 8px;
-        word-wrap: break-word;
-      }
-      strong {
-        display: inline-block;
-        min-width: 150px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Visitor Information</h1>
-    <div id="info">Loading...</div>
+<html>
 
-    <script>
-      async function getVisitorInfo() {
-        const infoDiv = document.getElementById("info");
-        let infoHTML = "";
-        let ipAddress = "Could not fetch IP"; // Default value
+<head>
+  <title>Dumb Ball Jump</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden; /* Hide scrollbars */
+      background-color: skyblue;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh; /* Full viewport height */
+    }
 
-        // --- Fetch IP Address (Requires an external service) ---
-        try {
-          // Using api.ipify.org as an example public IP service
-          const response = await fetch("https://api.ipify.org?format=json");
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          ipAddress = data.ip;
-        } catch (error) {
-          console.error("Error fetching IP address:", error);
-          ipAddress = `Error fetching IP: ${error.message}`;
+    #gameCanvas {
+      border: 2px solid black;
+      background-color: lightgreen;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Bird properties
+    let birdX = 50;
+    let birdY = canvas.height / 2;
+    let birdRadius = 20;
+    let birdVelocity = 0.5;
+    const gravity = 0.5;
+    const jumpStrength = -10;
+
+    // Pipe properties
+    let pipes = [];
+    const pipeWidth = 80;
+    const pipeGap = 200;
+    let pipeSpeed = 2;
+
+    // Score
+    let score = 0;
+    let gameStarted = false;
+
+    // Function to generate a new pipe pair
+    function generatePipe() {
+      let topPipeHeight = Math.random() * (canvas.height - pipeGap - 100) + 50; // Random height
+      let bottomPipeY = topPipeHeight + pipeGap;
+
+      pipes.push({
+        x: canvas.width,
+        topHeight: topPipeHeight,
+        bottomY: bottomPipeY,
+        passed: false, // To track if bird has passed the pipe
+      });
+    }
+
+    // Event listener for spacebar (jump)
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "Space") {
+        if (!gameStarted) {
+          gameStarted = true;
         }
+        birdVelocity = jumpStrength;
+      }
+    });
 
-        // --- Gather Browser Information ---
-        const ua = navigator.userAgent;
-        const screenWidth = screen.width;
-        const screenHeight = screen.height;
-        const colorDepth = screen.colorDepth;
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        const language = navigator.language || navigator.userLanguage;
-        const platform = navigator.platform;
-        const cookiesEnabled = navigator.cookieEnabled;
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const onlineStatus = navigator.onLine;
+    // Event listener for mouse click (jump)
+    document.addEventListener("mousedown", () => {
+      if (!gameStarted) {
+        gameStarted = true;
+      }
+      birdVelocity = jumpStrength;
+    });
 
-        // --- Basic Device Type Inference (Example - very basic!) ---
-        let deviceType = "Desktop";
-        if (/Mobi|Android/i.test(ua)) {
-          deviceType = "Mobile";
-        } else if (/Tablet|iPad/i.test(ua)) {
-          deviceType = "Tablet";
-        } else if (
-          platform.startsWith("Mac") ||
-          platform.startsWith("Win") ||
-          platform.startsWith("Linux")
+    // Collision detection function
+    function collisionDetection() {
+      // Check boundaries
+      if (birdY + birdRadius > canvas.height || birdY - birdRadius < 0) {
+        return true; // Hit top or bottom
+      }
+
+      // Check pipes
+      for (let i = 0; i < pipes.length; i++) {
+        let pipe = pipes[i];
+        if (
+          birdX + birdRadius > pipe.x &&
+          birdX - birdRadius < pipe.x + pipeWidth
         ) {
-          // Could still be a tablet/hybrid, but more likely desktop
-          deviceType = "Desktop";
+          if (
+            birdY - birdRadius < pipe.topHeight ||
+            birdY + birdRadius > pipe.bottomY
+          ) {
+            return true; // Hit a pipe
+          }
         }
-        // More robust detection often involves checking touch capabilities
-        // and screen size in addition to the user agent.
-
-        // --- Display Information ---
-        infoHTML += `<div><strong>IP Address:</strong> ${ipAddress}</div>`;
-        infoHTML += `<div><strong>User Agent:</strong> ${ua}</div>`;
-        infoHTML += `<div><strong>Inferred Device Type:</strong> ${deviceType} (based on UA/Platform)</div>`;
-        infoHTML += `<div><strong>Screen Resolution:</strong> ${screenWidth}x${screenHeight}</div>`;
-        infoHTML += `<div><strong>Color Depth:</strong> ${colorDepth}-bit</div>`;
-        infoHTML += `<div><strong>Browser Window Size:</strong> ${windowWidth}x${windowHeight}</div>`;
-        infoHTML += `<div><strong>Language:</strong> ${language}</div>`;
-        infoHTML += `<div><strong>Platform:</strong> ${platform}</div>`;
-        infoHTML += `<div><strong>Timezone:</strong> ${timezone}</div>`;
-        infoHTML += `<div><strong>Cookies Enabled:</strong> ${cookiesEnabled}</div>`;
-        infoHTML += `<div><strong>Online Status:</strong> ${onlineStatus}</div>`;
-
-        infoDiv.innerHTML = infoHTML;
       }
 
-      // Run the function when the page loads
-      window.addEventListener("load", getVisitorInfo);
-    </script>
-  </body>
+      return false;
+    }
+
+    // Reset game state
+    function resetGame() {
+      birdY = canvas.height / 2;
+      birdVelocity = 0;
+      pipes = [];
+      score = 0;
+      gameStarted = false;
+    }
+
+    // Game loop
+    function gameLoop() {
+      // Update
+      if (gameStarted) {
+        birdVelocity += gravity;
+        birdY += birdVelocity;
+
+        // Pipe movement
+        for (let i = 0; i < pipes.length; i++) {
+          pipes[i].x -= pipeSpeed;
+
+          // Score update
+          if (
+            pipes[i].x + pipeWidth < birdX - birdRadius &&
+            !pipes[i].passed
+          ) {
+            score++;
+            pipes[i].passed = true;
+          }
+        }
+
+        // Remove off-screen pipes
+        if (pipes.length > 0 && pipes[0].x + pipeWidth < 0) {
+          pipes.shift();
+        }
+
+        // Collision detection
+        if (collisionDetection()) {
+          resetGame();
+        }
+
+        // Generate new pipes
+        if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width / 2) {
+          generatePipe();
+        }
+      }
+
+      // Draw
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+      // Draw bird
+      ctx.beginPath();
+      ctx.arc(birdX, birdY, birdRadius, 0, Math.PI * 2);
+      ctx.fillStyle = "yellow";
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw pipes
+      ctx.fillStyle = "green";
+      for (let i = 0; i < pipes.length; i++) {
+        ctx.fillRect(pipes[i].x, 0, pipeWidth, pipes[i].topHeight); // Top pipe
+        ctx.fillRect(
+          pipes[i].x,
+          pipes[i].bottomY,
+          pipeWidth,
+          canvas.height - pipes[i].bottomY
+        ); // Bottom pipe
+      }
+
+      // Draw score
+      ctx.fillStyle = "black";
+      ctx.font = "24px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+
+      // Draw start message
+      if (!gameStarted) {
+        ctx.fillStyle = "black";
+        ctx.font = "32px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          "Click or press Space to start",
+          canvas.width / 2,
+          canvas.height / 2
+        );
+        ctx.textAlign = "left"; // Reset text alignment
+      }
+
+      requestAnimationFrame(gameLoop); // Call gameLoop again
+    }
+
+    // Initial pipe generation
+    generatePipe();
+
+    // Start the game loop
+    gameLoop();
+  </script>
+</body>
+
 </html>
